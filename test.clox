@@ -1,0 +1,28 @@
+var globalSet;
+var globalGet;
+
+class Hello{
+    init(message){
+        this.message = message;
+    }
+}
+print Hello();
+
+fun main(){
+    var a = "initial";
+
+    fun set() {a = "new value";}
+    fun get() {print a;}
+
+    globalSet = set;
+    globalGet = get;
+
+    var h = Hello();
+    h.first = "Hello";
+    h.second = "World";
+    print h.first + " " + h.second;
+}
+
+main();
+globalSet();
+globalGet();
