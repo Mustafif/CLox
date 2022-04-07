@@ -15,13 +15,27 @@ static Value clockNative(int argCount, Value* args){
     return NUMBER_VAL((double)clock()/ CLOCKS_PER_SEC);
 }
 
+
+static Value sumNative(int argCount, Value* args){
+    Value arg;
+    double sum = 0.0;
+    for (int i = 0; i < argCount; arg = args[i]){
+        if(IS_NUMBER(arg)){
+            sum += AS_NUMBER(arg);
+        } else {
+            sum += 0.0;
+        }
+    }
+    return NUMBER_VAL(sum);
+}
+
 static void closeUpvalues(Value* last);
 static bool call(ObjClosure* closure, int argCount);
 static bool callValue(Value callee, int argCount);
 static bool invoke(ObjString* name, int argCount);
 static bool bindMethod(ObjClass* klass, ObjString* name);
 static void defineMethod(ObjString* name);
-
+static bool invokeFromClass(ObjClass* klass, ObjString* name, int argCount);
 static void resetStack(){
     vm.stackTop = vm.stack;
     vm.frameCount = 0;
@@ -74,6 +88,7 @@ void initVM(){
     vm.initString = NULL;
     vm.initString = copyString("init", 4);
     defineNative("clock", clockNative);
+    defineNative("sum", sumNative);
 }
 
 void freeVM(){
@@ -205,6 +220,15 @@ for(;;){
             push(value);
             break;
         }
+        case OP_GET_SUPER: {
+            ObjString* name = READ_STRING();
+            ObjClass* superclass = AS_CLASS(pop());
+
+            if(!bindMethod(superclass, name)){
+                return INTERPRET_RUNTIME_ERROR;
+            }
+            break;
+        }
         case OP_EQUAL: {
             Value b = pop();
             Value a = pop();
@@ -278,6 +302,16 @@ for(;;){
             frame = &vm.frames[vm.frameCount-1];
             break;
         }
+        case OP_SUPER_INVOKE: {
+            ObjString* method = READ_STRING();
+            int argCount = READ_BYTE();
+            ObjClass* superclass = AS_CLASS(pop());
+            if(!invokeFromClass(superclass, method, argCount)){
+                return INTERPRET_RUNTIME_ERROR;
+            }
+            frame = &vm.frames[vm.frameCount - 1];
+            break;
+        }
         case OP_CLOSURE: {
             ObjFunction* function = AS_FUNCTION(READ_CONSTANT());
             ObjClosure* closure = newClosure(function);
@@ -318,6 +352,17 @@ for(;;){
         case OP_CLASS: 
             push(OBJ_VAL(newClass(READ_STRING())));
             break;
+        case OP_INHERIT: {
+            Value superclass = peek(1);
+            if(!IS_CLASS(superclass)){
+                runtimeError("Superclass must be a class.");
+                return INTERPRET_RUNTIME_ERROR;
+            }
+            ObjClass* subclass = AS_CLASS(peek(0));
+            tableAddAll(&AS_CLASS(superclass)->methods, &subclass->methods);
+            pop(); //Subclass 
+            break;
+        }
         case OP_METHOD: 
             defineMethod(READ_STRING());
             break;
